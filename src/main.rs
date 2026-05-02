@@ -5,18 +5,22 @@ extern "C" {
     fn exit(code: i32);
 }
 
+use std::thread;
+use std::time::Duration;
+
 fn send_msg(msg: &str) {
     unsafe { send(msg.as_ptr(), msg.len() as i32) }
 }
 
 fn output(text: &str) {
-    let mut escaped = String::with_capacity(text.len() + 32);
+    let mut escaped = String::with_capacity(text.len() + 64);
     for ch in text.chars() {
         match ch {
             '\\' => escaped.push_str("\\\\"),
             '"' => escaped.push_str("\\\""),
             '\n' => escaped.push_str("\\n"),
             '\t' => escaped.push_str("\\t"),
+            '\x1b' => escaped.push_str("\\u001b"),
             c if (c as u32) < 0x20 => {}
             c => escaped.push(c),
         }
@@ -24,9 +28,10 @@ fn output(text: &str) {
     send_msg(&format!(r#"{{"type":"output","text":"{escaped}"}}"#));
 }
 
-const W: usize = 40;
-const H: usize = 20;
-const GENS: usize = 30;
+const W: usize = 50;
+const H: usize = 25;
+const GENS: usize = 80;
+const FRAME_MS: u64 = 120;
 
 type Grid = [[bool; W]; H];
 
@@ -62,21 +67,44 @@ fn population(grid: &Grid) -> usize {
     grid.iter().flat_map(|r| r.iter()).filter(|&&c| c).count()
 }
 
-fn render(grid: &Grid, gen: usize) {
-    let sep = format!("  ╔{}╗", "═".repeat(W));
-    let bot = format!("  ╚{}╝", "═".repeat(W));
-    output(&format!("  ┌─── Generation {:>2} ─── Population: {:>3} ───┐", gen, population(grid)));
-    output(&sep);
+fn render_frame(grid: &Grid, gen: usize) {
+    let pop = population(grid);
+    let top = "═".repeat(W);
+
+    let mut frame = String::with_capacity((W + 20) * (H + 6));
+
+    // Clear screen and cursor home
+    frame.push_str("\x1b[2J\x1b[H\x1b[?25l");
+
+    // Header
+    frame.push_str("\n  \x1b[1;36m██████  Conway's Game of Life  ██████\x1b[0m\n\n");
+    frame.push_str(&format!(
+        "  Generation: \x1b[1;33m{:>3}\x1b[0m  │  Population: \x1b[1;32m{:>3}\x1b[0m  │  Board: {}×{}\n",
+        gen, pop, W, H
+    ));
+
+    // Top border
+    frame.push_str(&format!("  \x1b[90m╔{}╗\x1b[0m\n", top));
+
+    // Grid rows
     for r in 0..H {
-        let mut line = String::with_capacity(W * 3 + 6);
-        line.push_str("  ║");
+        frame.push_str("  \x1b[90m║\x1b[0m");
         for c in 0..W {
-            line.push(if grid[r][c] { '█' } else { '·' });
+            if grid[r][c] {
+                frame.push_str("\x1b[97m█\x1b[0m");
+            } else {
+                frame.push(' ');
+            }
         }
-        line.push('║');
-        output(&line);
+        frame.push_str("\x1b[90m║\x1b[0m\n");
     }
-    output(&bot);
+
+    // Bottom border
+    frame.push_str(&format!("  \x1b[90m╚{}╝\x1b[0m\n", top));
+
+    frame.push_str("\n  \x1b[90mR-pentomino · 2 Gliders · LWSS\x1b[0m\n");
+
+    output(&frame);
 }
 
 fn set(grid: &mut Grid, r: usize, c: usize, cells: &[(i32, i32)]) {
@@ -95,47 +123,40 @@ fn main() {
 
     let mut grid: Grid = [[false; W]; H];
 
-    // R-pentomino at center — famous chaotic methuselah (stabilizes at gen 1103)
-    //  .##
-    //  ##.
-    //  .#.
+    // R-pentomino at center
     set(&mut grid, H / 2, W / 2, &[
         (-1, 0), (-1, 1), (0, -1), (0, 0), (1, 0),
     ]);
 
-    // Glider heading south-east from top-left
+    // Glider heading SE from top-left
     set(&mut grid, 2, 2, &[
         (-1, 0), (0, 1), (1, -1), (1, 0), (1, 1),
     ]);
 
-    // Glider heading south-east from top-right area
+    // Glider heading SE from mid-top
     set(&mut grid, 2, 14, &[
         (-1, 0), (0, 1), (1, -1), (1, 0), (1, 1),
     ]);
 
-    // Lightweight spaceship (LWSS) heading east from left edge
+    // LWSS heading east from left
     set(&mut grid, H - 6, 3, &[
         (0, 0), (0, 3), (1, 4), (2, 0), (2, 4), (3, 1), (3, 2), (3, 3), (3, 4),
     ]);
 
-    output("");
-    output("  ██████  Conway's Game of Life  ██████");
-    output("");
-    output(&format!("  Board: {}×{}  │  Generations: {}  │  Patterns: R-pentomino + 2 gliders + LWSS", W, H, GENS));
-    output("");
-
-    // Show 8 evenly-spaced snapshots so the evolution is clearly visible
-    let frames: &[usize] = &[0, 3, 6, 10, 15, 20, 25, 29];
+    // Animate
     for gen in 0..GENS {
-        if frames.contains(&gen) {
-            render(&grid, gen);
-            output("");
-        }
+        render_frame(&grid, gen);
+        thread::sleep(Duration::from_millis(FRAME_MS));
         grid = step(&grid);
     }
 
-    output(&format!("  ▸ Final population: {} live cells", population(&grid)));
-    output("");
+    // Final frame + restore cursor
+    render_frame(&grid, GENS);
+    output("\x1b[?25h");
+    output(&format!(
+        "\n  \x1b[1;33m▸ Simulation complete — {} live cells remaining\x1b[0m\n\n",
+        population(&grid)
+    ));
 
     unsafe { exit(0) };
 }
