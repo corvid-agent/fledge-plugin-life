@@ -1,0 +1,22 @@
+[plugin]
+name = "life"
+version = "0.1.0"
+description = "Conway's Game of Life — visual WASM plugin demo"
+author = "corvid-agent"
+protocol = "fledge-v1"
+runtime = "wasm"
+
+[[commands]]
+name = "life"
+description = "Run Conway's Game of Life simulation"
+binary = "target/wasm32-wasip1/release/fledge-plugin-life.wasm"
+
+[hooks]
+build = "cargo build --target wasm32-wasip1 --release"
+
+[capabilities]
+exec = false
+store = false
+metadata = false
+filesystem = "none"
+network = false

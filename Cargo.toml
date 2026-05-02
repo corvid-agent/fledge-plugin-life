@@ -1,0 +1,10 @@
+[package]
+name = "fledge-plugin-life"
+version = "0.1.0"
+edition = "2021"
+description = "Conway's Game of Life — visual WASM plugin demo for fledge"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
