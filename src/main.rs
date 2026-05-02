@@ -24,9 +24,9 @@ fn output(text: &str) {
     send_msg(&format!(r#"{{"type":"output","text":"{escaped}"}}"#));
 }
 
-const W: usize = 50;
-const H: usize = 25;
-const GENS: usize = 50;
+const W: usize = 40;
+const H: usize = 20;
+const GENS: usize = 30;
 
 type Grid = [[bool; W]; H];
 
@@ -63,20 +63,20 @@ fn population(grid: &Grid) -> usize {
 }
 
 fn render(grid: &Grid, gen: usize) {
-    output(&format!("  Generation {:>3}   Population: {}", gen, population(grid)));
-    let border = format!("  +{}+", "-".repeat(W));
-    output(&border);
+    let sep = format!("  ╔{}╗", "═".repeat(W));
+    let bot = format!("  ╚{}╝", "═".repeat(W));
+    output(&format!("  ┌─── Generation {:>2} ─── Population: {:>3} ───┐", gen, population(grid)));
+    output(&sep);
     for r in 0..H {
-        let mut line = String::with_capacity(W + 6);
-        line.push_str("  |");
+        let mut line = String::with_capacity(W * 3 + 6);
+        line.push_str("  ║");
         for c in 0..W {
-            line.push(if grid[r][c] { '#' } else { ' ' });
+            line.push(if grid[r][c] { '█' } else { '·' });
         }
-        line.push('|');
+        line.push('║');
         output(&line);
     }
-    output(&border);
-    output("");
+    output(&bot);
 }
 
 fn set(grid: &mut Grid, r: usize, c: usize, cells: &[(i32, i32)]) {
@@ -96,8 +96,11 @@ fn main() {
     let mut grid: Grid = [[false; W]; H];
 
     // R-pentomino at center — famous chaotic methuselah (stabilizes at gen 1103)
+    //  .##
+    //  ##.
+    //  .#.
     set(&mut grid, H / 2, W / 2, &[
-        (0, 0), (0, 1), (-1, 1), (1, 0), (0, -1),
+        (-1, 0), (-1, 1), (0, -1), (0, 0), (1, 0),
     ]);
 
     // Glider heading south-east from top-left
@@ -116,20 +119,22 @@ fn main() {
     ]);
 
     output("");
-    output("  Conway's Game of Life");
-    output("  =====================");
-    output(&format!("  Board: {}x{}  |  Generations: {}", W, H, GENS));
-    output(&format!("  Patterns: R-pentomino, 2 gliders, 1 LWSS"));
+    output("  ██████  Conway's Game of Life  ██████");
+    output("");
+    output(&format!("  Board: {}×{}  │  Generations: {}  │  Patterns: R-pentomino + 2 gliders + LWSS", W, H, GENS));
     output("");
 
+    // Show 8 evenly-spaced snapshots so the evolution is clearly visible
+    let frames: &[usize] = &[0, 3, 6, 10, 15, 20, 25, 29];
     for gen in 0..GENS {
-        if gen < 6 || gen % 5 == 0 || gen == GENS - 1 {
+        if frames.contains(&gen) {
             render(&grid, gen);
+            output("");
         }
         grid = step(&grid);
     }
 
-    output(&format!("  Final population after {} generations: {} cells", GENS, population(&grid)));
+    output(&format!("  ▸ Final population: {} live cells", population(&grid)));
     output("");
 
     unsafe { exit(0) };
