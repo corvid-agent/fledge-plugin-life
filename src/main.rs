@@ -8,6 +8,8 @@ extern "C" {
 use std::thread;
 use std::time::Duration;
 
+use fledge_plugin_life::{population, set, step, Grid, H, W};
+
 fn send_msg(msg: &str) {
     unsafe { send(msg.as_ptr(), msg.len() as i32) }
 }
@@ -28,44 +30,8 @@ fn output(text: &str) {
     send_msg(&format!(r#"{{"type":"output","text":"{escaped}"}}"#));
 }
 
-const W: usize = 50;
-const H: usize = 25;
 const GENS: usize = 80;
 const FRAME_MS: u64 = 120;
-
-type Grid = [[bool; W]; H];
-
-fn neighbors(grid: &Grid, r: usize, c: usize) -> u8 {
-    let mut n = 0u8;
-    for dr in [-1i32, 0, 1] {
-        for dc in [-1i32, 0, 1] {
-            if dr == 0 && dc == 0 {
-                continue;
-            }
-            let nr = r as i32 + dr;
-            let nc = c as i32 + dc;
-            if nr >= 0 && nr < H as i32 && nc >= 0 && nc < W as i32 && grid[nr as usize][nc as usize] {
-                n += 1;
-            }
-        }
-    }
-    n
-}
-
-fn step(grid: &Grid) -> Grid {
-    let mut next = [[false; W]; H];
-    for r in 0..H {
-        for c in 0..W {
-            let n = neighbors(grid, r, c);
-            next[r][c] = if grid[r][c] { n == 2 || n == 3 } else { n == 3 };
-        }
-    }
-    next
-}
-
-fn population(grid: &Grid) -> usize {
-    grid.iter().flat_map(|r| r.iter()).filter(|&&c| c).count()
-}
 
 fn render_frame(grid: &Grid, gen: usize) {
     let pop = population(grid);
@@ -87,10 +53,10 @@ fn render_frame(grid: &Grid, gen: usize) {
     frame.push_str(&format!("  \x1b[90m╔{}╗\x1b[0m\n", top));
 
     // Grid rows
-    for r in 0..H {
+    for row in &grid[..H] {
         frame.push_str("  \x1b[90m║\x1b[0m");
-        for c in 0..W {
-            if grid[r][c] {
+        for &cell in &row[..W] {
+            if cell {
                 frame.push_str("\x1b[97m█\x1b[0m");
             } else {
                 frame.push(' ');
@@ -107,16 +73,6 @@ fn render_frame(grid: &Grid, gen: usize) {
     output(&frame);
 }
 
-fn set(grid: &mut Grid, r: usize, c: usize, cells: &[(i32, i32)]) {
-    for &(dr, dc) in cells {
-        let nr = r as i32 + dr;
-        let nc = c as i32 + dc;
-        if nr >= 0 && nr < H as i32 && nc >= 0 && nc < W as i32 {
-            grid[nr as usize][nc as usize] = true;
-        }
-    }
-}
-
 fn main() {
     let mut buf = [0u8; 8192];
     unsafe { recv(buf.as_mut_ptr(), buf.len() as i32) };
@@ -124,24 +80,41 @@ fn main() {
     let mut grid: Grid = [[false; W]; H];
 
     // R-pentomino at center
-    set(&mut grid, H / 2, W / 2, &[
-        (-1, 0), (-1, 1), (0, -1), (0, 0), (1, 0),
-    ]);
+    set(
+        &mut grid,
+        H / 2,
+        W / 2,
+        &[(-1, 0), (-1, 1), (0, -1), (0, 0), (1, 0)],
+    );
 
     // Glider heading SE from top-left
-    set(&mut grid, 2, 2, &[
-        (-1, 0), (0, 1), (1, -1), (1, 0), (1, 1),
-    ]);
+    set(&mut grid, 2, 2, &[(-1, 0), (0, 1), (1, -1), (1, 0), (1, 1)]);
 
     // Glider heading SE from mid-top
-    set(&mut grid, 2, 14, &[
-        (-1, 0), (0, 1), (1, -1), (1, 0), (1, 1),
-    ]);
+    set(
+        &mut grid,
+        2,
+        14,
+        &[(-1, 0), (0, 1), (1, -1), (1, 0), (1, 1)],
+    );
 
     // LWSS heading east from left
-    set(&mut grid, H - 6, 3, &[
-        (0, 0), (0, 3), (1, 4), (2, 0), (2, 4), (3, 1), (3, 2), (3, 3), (3, 4),
-    ]);
+    set(
+        &mut grid,
+        H - 6,
+        3,
+        &[
+            (0, 0),
+            (0, 3),
+            (1, 4),
+            (2, 0),
+            (2, 4),
+            (3, 1),
+            (3, 2),
+            (3, 3),
+            (3, 4),
+        ],
+    );
 
     // Animate
     for gen in 0..GENS {

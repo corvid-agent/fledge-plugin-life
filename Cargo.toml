@@ -3,6 +3,16 @@ name = "fledge-plugin-life"
 version = "0.1.0"
 edition = "2021"
 description = "Conway's Game of Life — visual WASM plugin demo for fledge"
+license = "MIT"
+repository = "https://github.com/corvid-agent/fledge-plugin-life"
+
+[lib]
+name = "fledge_plugin_life"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fledge-plugin-life"
+path = "src/main.rs"
 
 [profile.release]
 opt-level = "s"
