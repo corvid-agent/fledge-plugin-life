@@ -1,5 +1,5 @@
 [plugin]
-name = "life"
+name = "fledge-plugin-life"
 version = "0.1.0"
 description = "Conway's Game of Life — visual WASM plugin demo"
 author = "corvid-agent"
